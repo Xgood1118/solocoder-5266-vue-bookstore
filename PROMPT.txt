@@ -1,0 +1,37 @@
+需求：Vue3 + Node.js 网上书店，书籍 / 作者 / 库存 / 评价 / 推荐 / PDF 试读 / 榜单。
+
+背景：图书电商竞争激烈，我们想做差异化：每本书免费试读前 30%（PDF 流式渲染，不下载）、基于阅读历史的智能推荐、开卷榜单数据可视化。技术栈 Vue3 SSR（Nuxt 3）+ Express 后端 + SQLite。
+
+核心功能：
+- 书籍：标题、ISBN、作者、出版社、分类、定价、库存、封面、目录、试读 PDF
+- 作者档案：作者主页（生平、代表作品、全部作品列表）
+- 试读：前 30% 内容流式渲染（PDF.js 按页加载，不发完整 PDF）
+- 推荐：基于用户浏览 / 购买历史的协同过滤 + 标签匹配冷启动
+- 评价：1-5 星 + 长评 + 标签（"剧情紧凑 / 文笔优美 / 翻译一般"）+ 有用投票
+- 收藏 / 购物车 / 订单：标准电商流程（参考 5261 项目的逻辑）
+- 榜单：开卷月榜、销量榜、新书榜、热评榜，可视化（柱状 + 折线）
+- 优惠码：单本 / 满减 / 限时折扣三种类型
+- 会员：累计消费分等级（白银 / 黄金 / 钻石），不同等级折扣率
+
+涉及模块：
+- `server/api/`：books / authors / orders / reviews / recommendations / rankings
+- `server/services/`：推荐引擎（基于用户-物品矩阵）、PDF 切片
+- `server/db/`：SQLite + 物化视图（榜单）
+- `web/pages/`：首页、书籍详情、作者页、榜单、阅读、订单
+- `web/components/`：BookCard、PDFViewer、ReviewList、Recommendation
+- `web/composables/`：useCart、useUser、useSearch
+
+注意事项：
+- 试读 PDF 用流式 range 请求，nginx 配 `slice` 模块，不要整本发出去
+- 推荐冷启动：新用户基于热门 + 标签匹配，老用户基于协同过滤（用户-物品矩阵用 ALS 训练）
+- 评价标签要做同义词合并（"翻译烂"和"翻译差"合并），不然标签云全是变体
+- 库存按 SKU 维度：同 ISBN 不同版本（精装 / 平装）独立库存
+- 订单支付流程同 5261：下单锁库存 + 支付扣库存 + 超时回滚
+- 榜单数据用物化视图 / 预聚合表，每天 0 点跑 cron 重算（不要每次查实时 SUM）
+- ISBN 校验位算法：最后一位是前 12 位加权求和 mod 11，老 ISBN 用 10 校验
+- PDF 切片后用 `pdfjs-dist` 流式渲染，按页 slice 而不是整本缓存
+- 阅读历史脱敏：分析用 hashed user_id，不存明文 → 隐私
+- Nuxt 3 SSR：用 `useFetch` 而非 axios + useState，避免双倍请求
+- 会员等级计算要"实时"还是"定时"？MVP 用实时累加（订单完成后更新 total_spend）
+- 优惠码防刷：同用户 1 小时内最多用 3 次（Redis 计数器 or 内存 map）
+- 防爬：试读接口加 rate limit，恶意请求 429
