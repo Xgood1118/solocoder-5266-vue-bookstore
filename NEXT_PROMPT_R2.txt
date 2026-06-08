@@ -1,0 +1,9 @@
+第二轮整体没修好。下了个注册用户走下单流程，POST /api/order/create 一调还是直接 500 报 "cannot start a transaction within a transaction" 错误，跟 R1 报的错一字不差，订单建不下来后面评价/支付全挂。
+
+试读那边调 POST /api/pdf/generate-sample/1 想造个示例 PDF 出来看效果，服务端又报 "WinAnsi cannot encode 活 (0x6d3b)"，中文书名还是写不进 PDF 里，PDF 接口整体走不通。
+
+技术栈也没动。web/ 目录看了下，package.json 还是 vue@^3.4.0 + vite@^5.0.10 + axios + vue-router + pinia，dev script 是 vite，根目录有 vite.config.js，没有 nuxt.config.ts，src/main.js 用的是 createApp + mount('#app') 经典 SPA 写法，HTML body 只剩 `<div id="app"></div>` 加载 main.js 那一套，零 SSR 渲染。PROMPT 明确要 Nuxt 3 SSR + useFetch，方向完全没改。
+
+唯一看着有变化的是榜单——4 个榜单类型 (sales/new/hot_review/kaijuan_monthly) 调用 /api/ranking/recalculate 之后各能返回 20 条数据，不像 R1 那时是空表了，但这块之前 R1 已经埋了 recalc 接口，只是没数据，重新跑一次 recalculate 自然就有了。
+
+检查修复一下。
