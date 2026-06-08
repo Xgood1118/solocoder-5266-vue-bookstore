@@ -1,20 +1,5 @@
-R1 评估发现项目实现和 PROMPT 需求偏差较大，主要是技术栈和核心流程有问题，需要第二轮回炉重做：
+项目跑起来下单流程就走不通——加车、登录都 OK，但 POST /api/order/create 直接 500 `cannot start a transaction within a transaction`，评价和支付都依赖这个订单所以也连带挂；PDF 试读接口报 `WinAnsi cannot encode "活"`，pdf-lib 不支持中文，榜单表是空的。
 
-1. 技术栈错误：当前项目用 Vite + Vue3 SPA（vue-router + pinia），PROMPT 明确要求 Nuxt 3 SSR。需要改用 Nuxt 3，SSR 全栈用 useFetch 而不是 axios + useState。
+技术栈也偏离了，PROMPT 要 Nuxt 3 SSR 实际是 Vite + Vue SPA + axios 拼出来的，这个一并改一下。
 
-2. PDF 试读功能完全坏掉：POST /api/pdf/generate-sample/1 直接报错 `WinAnsi cannot encode "活" (0x6d3b)`，pdf-lib 的标准字体不支持中文。PROMPT 要求用 PDF.js 流式渲染、按页 slice，不能整本发。当前实现连样例 PDF 都生成不出来，所以 GET /api/pdf/info/1 永远返回 hasPdf: false，GET /api/pdf/trial/1 返回空对象，PDF 试读整个流程走不通。需要换成支持中文的 PDF 生成方案（比如 pdf-lib 嵌入思源字体 / 服务端 PDFKit / 客户端用 PDF.js 直接按页请求）。
-
-3. 订单创建直接报错：POST /api/order/create 返回 `cannot start a transaction within a transaction`。看 orderService.createOrder 外面包了 db.transaction，里面又调 stockService.lockStocks（也用 db.transaction），sql.js 嵌套事务炸了。整个下单 / 支付 / 退款的流程都跑不了，购物车加好了但下不了单。需要修掉嵌套事务的写法（去掉内层的 db.transaction 或合并成一个）。
-
-4. 评价创建也间接坏掉：POST /api/review/create 要 orderItemId 而且要求订单是 delivered 状态，但订单本来就创不了，评价走不通。还得单独看 reviewService.createReview 在没有 orderId/orderItemId 时直接传 undefined 进 sql.js 也会报 `Wrong API use: tried to bind a value of an unknown type (undefined)`。
-
-5. 榜单数据空：cron 每天 0 点跑，初始化时 ranking_books 表是空的，所有 ranking 接口返回 list:[]。建议种子数据跑完后立刻调一次 rankingService.recalculateAll() 把榜单写满，不然新部署的实例 ranking 页面永远是空的。
-
-6. PROMPT 里还有几个明确要求没看到实现：ISBN 校验位算法（utils/helpers.js 里写了但 bookService 没用）、PDF 试读接口的 rate limit（middleware/rateLimit.js 里写了 couponUseLimiter 但 pdfTrialLimiter 没接到实际路由）、评价标签同义词合并（reviewService 没看到 "翻译烂"→"翻译差" 这种归一化）、协同过滤（用 ALS 训练用户-物品矩阵，目前只做了 user-based similarity 没看到 ALS）。
-
-第二轮期望：
-- 重写成 Nuxt 3 SSR，全栈 useFetch
-- 修嵌套事务 bug
-- 换 PDF 中文方案让样例 PDF 能生成
-- 评价创建要能在订单完成后真的能写
-- 初始化时跑一次榜单 recalculate
+检查修复一下。
